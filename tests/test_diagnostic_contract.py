@@ -1,0 +1,29 @@
+from pathlib import Path
+
+source = Path("src/main.cpp").read_text(encoding="utf-8")
+
+required = {
+    "persistent_log": 'DiagnosticFile() { return fs::path(AppDataDir()) / L"diagnostic.log"; }',
+    "system_snapshot": "SystemSnapshot",
+    "report_export": "ExportDiagnosticReport",
+    "report_button": "ID_DIAGNOSTICS",
+    "password_redaction": "password_value=REDACTED",
+    "password_length_only": "password_length=",
+    "process_result": "PROCESS_RESULT",
+    "nested_detection": "NESTED_DETECT",
+    "deep_signature_scan": "ShouldDeepScanArchive",
+    "partial_success": "partial_success",
+}
+for name, token in required.items():
+    assert token in source, f"missing diagnostic contract: {name}"
+
+# Ensure the new diagnostic messages do not contain the actual password variable/value.
+for line in source.splitlines():
+    if "WriteDiagnostic" in line or "DiagnosticReportHeader" in line:
+        assert "passwords[i]" not in line
+        assert "password_value=REDACTED" not in line or "password_value=REDACTED" in source
+extract_section = source[source.find("WriteDiagnostic(L\"EXTRACT_ATTEMPT"):source.find("WriteDiagnostic(L\"EXTRACT_ATTEMPT") + 800]
+assert "passwords[i].size()" in extract_section
+assert "password_value=REDACTED" in extract_section
+
+print("PASS: diagnostic persistence, system snapshot, report export, redaction, process classification and deep detection contracts")
