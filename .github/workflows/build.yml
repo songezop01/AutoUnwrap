@@ -1,0 +1,58 @@
+name: Build AutoUnwrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MinGW-w64
+        shell: pwsh
+        run: |
+          choco install mingw -y --no-progress
+          gcc --version
+          g++ --version
+
+      - name: Build AutoUnwrap.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          windres src/resource.rc -O coff -o resource.o
+
+          g++ -std=c++17 -O2 -mwindows -municode `
+            -DUNICODE -D_UNICODE `
+            src/main.cpp resource.o `
+            -o "dist/AutoUnwrap.exe" `
+            -static-libgcc -static-libstdc++ -static
+
+          if (!(Test-Path "dist/AutoUnwrap.exe")) {
+            throw "Build failed: AutoUnwrap.exe not found"
+          }
+
+          & "dist/AutoUnwrap.exe" --version
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "dist/AutoUnwrap.exe" `
+            -DestinationPath "AutoUnwrap-Windows-x64.zip" `
+            -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoUnwrap-Windows-x64
+          path: AutoUnwrap-Windows-x64.zip
+          if-no-files-found: error
