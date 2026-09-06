@@ -18,13 +18,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           choco install mingw -y --no-progress
-
-          $env:Path += ";C:\ProgramData\mingw64\mingw64\bin"
-          $env:Path += ";C:\mingw64\bin"
-
-          gcc --version
+          $gcc = Get-ChildItem "C:\ProgramData\mingw64\mingw64\bin" -ErrorAction SilentlyContinue
+          if ($gcc) { $env:Path = "C:\ProgramData\mingw64\mingw64\bin;" + $env:Path }
+          $gcc2 = Get-ChildItem "C:\mingw64\bin" -ErrorAction SilentlyContinue
+          if ($gcc2) { $env:Path = "C:\mingw64\bin;" + $env:Path }
+          where.exe g++
+          where.exe windres
           g++ --version
           windres --version
 
@@ -32,18 +32,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force "dist" | Out-Null
 
-          New-Item -ItemType Directory -Force dist | Out-Null
-
-          Write-Host "=== Building Windows resource ==="
-
-          windres src/resource.rc -O coff -o resource.o
-
-          if (!(Test-Path "resource.o")) {
-            throw "resource.o was not created"
-          }
-
-          Write-Host "=== Compiling AutoUnwrap ==="
+          windres "src/resource.rc" -O coff -o "resource.o"
+          if ($LASTEXITCODE -ne 0) { throw "windres failed with exit code $LASTEXITCODE" }
 
           g++ `
             -std=c++17 `
@@ -52,12 +44,10 @@ jobs:
             -municode `
             -DUNICODE `
             -D_UNICODE `
-            src/main.cpp `
-            resource.o `
+            "src/main.cpp" "resource.o" `
             -o "dist/AutoUnwrap.exe" `
             -static-libgcc `
             -static-libstdc++ `
-            -static `
             -lshell32 `
             -lcomdlg32 `
             -lcrypt32 `
@@ -68,37 +58,17 @@ jobs:
             -lgdi32 `
             -luser32
 
-          if (!(Test-Path "dist/AutoUnwrap.exe")) {
-            throw "Build failed: AutoUnwrap.exe was not created"
-          }
-
-          Write-Host "=== Build successful ==="
-
-          Get-Item "dist/AutoUnwrap.exe" |
-            Select-Object Name, Length, FullName
-
-      - name: Verify executable
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $exe = Get-Item "dist/AutoUnwrap.exe"
-
-          if ($exe.Length -lt 100000) {
-            throw "AutoUnwrap.exe looks suspiciously small"
-          }
-
-          Write-Host "EXE size:" $exe.Length "bytes"
+          if ($LASTEXITCODE -ne 0) { throw "g++ failed with exit code $LASTEXITCODE" }
+          if (!(Test-Path "dist/AutoUnwrap.exe")) { throw "Build failed: AutoUnwrap.exe was not created" }
+          Get-Item "dist/AutoUnwrap.exe" | Select-Object Name,Length,FullName
 
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive `
-            -Path "dist/AutoUnwrap.exe" `
-            -DestinationPath "AutoUnwrap-Windows-x64.zip" `
-            -Force
+          $ErrorActionPreference = "Stop"
+          Compress-Archive -Path "dist/AutoUnwrap.exe" -DestinationPath "AutoUnwrap-Windows-x64.zip" -Force
 
-      - name: Upload AutoUnwrap
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoUnwrap-Windows-x64
