@@ -681,17 +681,6 @@ static LRESULT CALLBACK PasswordDialogProc(HWND hwnd, UINT message, WPARAM wpara
             return 0;
         }
         case WM_CLOSE:
-            // Treat the window's X button as "儲存設定並關閉". The previous
-            // build had OK/CANCEL handlers but accidentally created neither
-            // button, so closing the settings window discarded the checkbox
-            // state and g_delete_after stayed false for the next job.
-            if (state) {
-                wchar_t buffer[MAX_PATH * 4] = {};
-                GetWindowTextW(state->fixed_edit, buffer, MAX_PATH * 4);
-                state->folder = buffer;
-                state->delete_after = SendMessageW(GetDlgItem(hwnd, OD_DELETE), BM_GETCHECK, 0, 0) == BST_CHECKED;
-                state->accepted = true;
-            }
             DestroyWindow(hwnd);
             return 0;
     }
@@ -823,17 +812,6 @@ static LRESULT CALLBACK DisguiseRuleDialogProc(HWND hwnd, UINT message, WPARAM w
             return 0;
         }
         case WM_CLOSE:
-            // Treat the window's X button as "儲存設定並關閉". The previous
-            // build had OK/CANCEL handlers but accidentally created neither
-            // button, so closing the settings window discarded the checkbox
-            // state and g_delete_after stayed false for the next job.
-            if (state) {
-                wchar_t buffer[MAX_PATH * 4] = {};
-                GetWindowTextW(state->fixed_edit, buffer, MAX_PATH * 4);
-                state->folder = buffer;
-                state->delete_after = SendMessageW(GetDlgItem(hwnd, OD_DELETE), BM_GETCHECK, 0, 0) == BST_CHECKED;
-                state->accepted = true;
-            }
             DestroyWindow(hwnd);
             return 0;
     }
