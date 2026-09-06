@@ -18,13 +18,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+
           choco install mingw -y --no-progress
-          $gcc = Get-ChildItem "C:\ProgramData\mingw64\mingw64\bin" -ErrorAction SilentlyContinue
-          if ($gcc) { $env:Path = "C:\ProgramData\mingw64\mingw64\bin;" + $env:Path }
-          $gcc2 = Get-ChildItem "C:\mingw64\bin" -ErrorAction SilentlyContinue
-          if ($gcc2) { $env:Path = "C:\mingw64\bin;" + $env:Path }
-          where.exe g++
-          where.exe windres
+
+          gcc --version
           g++ --version
           windres --version
 
@@ -32,10 +29,21 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force "dist" | Out-Null
 
-          windres "src/resource.rc" -O coff -o "resource.o"
-          if ($LASTEXITCODE -ne 0) { throw "windres failed with exit code $LASTEXITCODE" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          Write-Host "=== Building Windows resource ==="
+          windres src/resource.rc -O coff -o resource.o
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "windres failed with exit code $LASTEXITCODE"
+          }
+
+          if (!(Test-Path "resource.o")) {
+            throw "resource.o was not created"
+          }
+
+          Write-Host "=== Compiling AutoUnwrap ==="
 
           g++ `
             -std=c++17 `
@@ -44,7 +52,8 @@ jobs:
             -municode `
             -DUNICODE `
             -D_UNICODE `
-            "src/main.cpp" "resource.o" `
+            src/main.cpp `
+            resource.o `
             -o "dist/AutoUnwrap.exe" `
             -static-libgcc `
             -static-libstdc++ `
@@ -58,17 +67,57 @@ jobs:
             -lgdi32 `
             -luser32
 
-          if ($LASTEXITCODE -ne 0) { throw "g++ failed with exit code $LASTEXITCODE" }
-          if (!(Test-Path "dist/AutoUnwrap.exe")) { throw "Build failed: AutoUnwrap.exe was not created" }
-          Get-Item "dist/AutoUnwrap.exe" | Select-Object Name,Length,FullName
+          if ($LASTEXITCODE -ne 0) {
+            throw "g++ failed with exit code $LASTEXITCODE"
+          }
+
+          if (!(Test-Path "dist/AutoUnwrap.exe")) {
+            throw "Build failed: AutoUnwrap.exe was not created"
+          }
+
+          Write-Host "=== Build successful ==="
+          Get-Item "dist/AutoUnwrap.exe" | Select-Object Name, Length, FullName
+
+      - name: Collect runtime DLLs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $gccPath = (Get-Command g++.exe).Source
+          $mingwBin = Split-Path $gccPath
+
+          Write-Host "MinGW bin directory: $mingwBin"
+
+          $dlls = @(
+            "libwinpthread-1.dll",
+            "libgcc_s_seh-1.dll",
+            "libstdc++-6.dll"
+          )
+
+          foreach ($dll in $dlls) {
+            $source = Join-Path $mingwBin $dll
+
+            if (Test-Path $source) {
+              Write-Host "Copying $dll"
+              Copy-Item $source "dist\$dll" -Force
+            }
+            else {
+              Write-Host "$dll not found; skipping"
+            }
+          }
+
+          Write-Host "=== Runtime package contents ==="
+          Get-ChildItem dist
 
       - name: Package
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          Compress-Archive -Path "dist/AutoUnwrap.exe" -DestinationPath "AutoUnwrap-Windows-x64.zip" -Force
+          Compress-Archive `
+            -Path "dist\*" `
+            -DestinationPath "AutoUnwrap-Windows-x64.zip" `
+            -Force
 
-      - name: Upload artifact
+      - name: Upload AutoUnwrap
         uses: actions/upload-artifact@v4
         with:
           name: AutoUnwrap-Windows-x64
