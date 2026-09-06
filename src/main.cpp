@@ -40,7 +40,7 @@ static constexpr UINT WM_APP_FIRST_RUN = WM_APP + 3;
 static constexpr UINT WM_APP_STATUS = WM_APP + 4;
 static constexpr UINT WM_APP_REQUEST_PASSWORD = WM_APP + 5;
 static constexpr int MAX_LAYERS = 5;
-static constexpr wchar_t APP_VERSION[] = L"3.0.3-delete-retry";
+static constexpr wchar_t APP_VERSION[] = L"3.0.4-settings-delete-fix";
 
 static constexpr int ID_LOG = 1001;
 static constexpr int ID_PASSWORDS = 1002;
@@ -391,8 +391,8 @@ static std::wstring ReadSetting(const wchar_t* key, const std::wstring& fallback
     return buffer;
 }
 
-static void WriteSetting(const wchar_t* key, const std::wstring& value) {
-    WritePrivateProfileStringW(L"AutoUnwrap", key, value.c_str(), SettingsIniFile().wstring().c_str());
+static bool WriteSetting(const wchar_t* key, const std::wstring& value) {
+    return WritePrivateProfileStringW(L"AutoUnwrap", key, value.c_str(), SettingsIniFile().wstring().c_str()) != 0;
 }
 
 static void LoadSettings() {
@@ -417,16 +417,31 @@ static void LoadSettings() {
     g_delete_after = ini_delete == L"1";
 }
 
-static void SaveSettings() {
+static bool SaveSettings() {
     EnsureAppDataDir();
-    SaveWideText(EngineFile(), g_engine_path);
-    SaveWideText(OutputModeFile(), std::to_wstring(static_cast<int>(g_output_mode)));
-    SaveWideText(OutputFolderFile(), g_output_folder.wstring());
-    SaveWideText(DeleteAfterFile(), g_delete_after ? L"1" : L"0");
-    WriteSetting(L"engine", g_engine_path);
-    WriteSetting(L"output_mode", std::to_wstring(static_cast<int>(g_output_mode)));
-    WriteSetting(L"output_folder", g_output_folder.wstring());
-    WriteSetting(L"delete_after", g_delete_after ? L"1" : L"0");
+    const std::wstring mode = std::to_wstring(static_cast<int>(g_output_mode));
+    const std::wstring folder = g_output_folder.wstring();
+    const std::wstring delete_after = g_delete_after ? L"1" : L"0";
+
+    const bool legacy_ok =
+        SaveWideText(EngineFile(), g_engine_path) &&
+        SaveWideText(OutputModeFile(), mode) &&
+        SaveWideText(OutputFolderFile(), folder) &&
+        SaveWideText(DeleteAfterFile(), delete_after);
+
+    const bool ini_ok =
+        WriteSetting(L"engine", g_engine_path) &&
+        WriteSetting(L"output_mode", mode) &&
+        WriteSetting(L"output_folder", folder) &&
+        WriteSetting(L"delete_after", delete_after);
+
+    const bool ok = legacy_ok && ini_ok;
+    WriteDiagnostic(L"SETTINGS_SAVE",
+        L"result=" + std::wstring(ok ? L"success" : L"failure") +
+        L"；dir=" + fs::path(AppDataDir()).wstring() +
+        L"；output_mode=" + mode +
+        L"；delete_after=" + delete_after);
+    return ok;
 }
 
 static void LoadDisguiseRules() {
@@ -666,7 +681,17 @@ static LRESULT CALLBACK PasswordDialogProc(HWND hwnd, UINT message, WPARAM wpara
             return 0;
         }
         case WM_CLOSE:
-            if (state) state->accepted = false;
+            // Treat the window's X button as "儲存設定並關閉". The previous
+            // build had OK/CANCEL handlers but accidentally created neither
+            // button, so closing the settings window discarded the checkbox
+            // state and g_delete_after stayed false for the next job.
+            if (state) {
+                wchar_t buffer[MAX_PATH * 4] = {};
+                GetWindowTextW(state->fixed_edit, buffer, MAX_PATH * 4);
+                state->folder = buffer;
+                state->delete_after = SendMessageW(GetDlgItem(hwnd, OD_DELETE), BM_GETCHECK, 0, 0) == BST_CHECKED;
+                state->accepted = true;
+            }
             DestroyWindow(hwnd);
             return 0;
     }
@@ -798,7 +823,17 @@ static LRESULT CALLBACK DisguiseRuleDialogProc(HWND hwnd, UINT message, WPARAM w
             return 0;
         }
         case WM_CLOSE:
-            if (state) state->accepted = false;
+            // Treat the window's X button as "儲存設定並關閉". The previous
+            // build had OK/CANCEL handlers but accidentally created neither
+            // button, so closing the settings window discarded the checkbox
+            // state and g_delete_after stayed false for the next job.
+            if (state) {
+                wchar_t buffer[MAX_PATH * 4] = {};
+                GetWindowTextW(state->fixed_edit, buffer, MAX_PATH * 4);
+                state->folder = buffer;
+                state->delete_after = SendMessageW(GetDlgItem(hwnd, OD_DELETE), BM_GETCHECK, 0, 0) == BST_CHECKED;
+                state->accepted = true;
+            }
             DestroyWindow(hwnd);
             return 0;
     }
@@ -953,6 +988,12 @@ static LRESULT CALLBACK OutputDialogProc(HWND hwnd, UINT message, WPARAM wparam,
             CreateWindowW(L"BUTTON", L"完成後自動刪除已成功解壓的壓縮檔",
                           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                           S(18), S(150), S(520), S(26), hwnd, reinterpret_cast<HMENU>(OD_DELETE), instance, nullptr);
+            CreateWindowW(L"BUTTON", L"儲存設定並關閉",
+                          WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                          S(330), S(188), S(145), S(30), hwnd, reinterpret_cast<HMENU>(OD_OK), instance, nullptr);
+            CreateWindowW(L"BUTTON", L"取消",
+                          WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                          S(485), S(188), S(60), S(30), hwnd, reinterpret_cast<HMENU>(OD_CANCEL), instance, nullptr);
             SendMessageW(source, BM_SETCHECK, state->mode == OutputMode::SourceFolder ? BST_CHECKED : BST_UNCHECKED, 0);
             SendMessageW(fixed, BM_SETCHECK, state->mode == OutputMode::FixedFolder ? BST_CHECKED : BST_UNCHECKED, 0);
             SendMessageW(ask, BM_SETCHECK, state->mode == OutputMode::AskEachTime ? BST_CHECKED : BST_UNCHECKED, 0);
@@ -1004,7 +1045,17 @@ static LRESULT CALLBACK OutputDialogProc(HWND hwnd, UINT message, WPARAM wparam,
             return 0;
         }
         case WM_CLOSE:
-            if (state) state->accepted = false;
+            // Treat the window's X button as "儲存設定並關閉". The previous
+            // build had OK/CANCEL handlers but accidentally created neither
+            // button, so closing the settings window discarded the checkbox
+            // state and g_delete_after stayed false for the next job.
+            if (state) {
+                wchar_t buffer[MAX_PATH * 4] = {};
+                GetWindowTextW(state->fixed_edit, buffer, MAX_PATH * 4);
+                state->folder = buffer;
+                state->delete_after = SendMessageW(GetDlgItem(hwnd, OD_DELETE), BM_GETCHECK, 0, 0) == BST_CHECKED;
+                state->accepted = true;
+            }
             DestroyWindow(hwnd);
             return 0;
     }
@@ -1030,7 +1081,7 @@ static bool ShowOutputDialog(HWND owner) {
     g_dpi = WindowDpi(owner);
     RECT owner_rect{};
     GetWindowRect(owner, &owner_rect);
-    const int width = S(590), height = S(235);
+    const int width = S(590), height = S(245);
     const int x = owner_rect.left + ((owner_rect.right - owner_rect.left) - width) / 2;
     const int y = owner_rect.top + ((owner_rect.bottom - owner_rect.top) - height) / 2;
     HWND dialog = CreateWindowExW(WS_EX_DLGMODALFRAME, L"AutoUnwrapOutputDialog", L"輸出與刪除設定",
@@ -1052,11 +1103,16 @@ static bool ShowOutputDialog(HWND owner) {
         g_output_mode = state.mode;
         g_output_folder = state.folder;
         g_delete_after = state.delete_after;
-        SaveSettings();
+        const bool save_ok = SaveSettings();
         const bool saved_delete_after = ReadSetting(L"delete_after", L"0") == L"1";
         WriteDiagnostic(L"USER_ACTION", L"輸出設定已確認；模式=" + std::to_wstring(static_cast<int>(g_output_mode)) +
                         L"；固定資料夾=" + g_output_folder.wstring() + L"；完成後刪除=" + (g_delete_after ? L"是" : L"否") +
-                        L"；保存驗證=" + (saved_delete_after == g_delete_after ? L"成功" : L"失敗"));
+                        L"；保存驗證=" + (save_ok && saved_delete_after == g_delete_after ? L"成功" : L"失敗"));
+        if (!save_ok || saved_delete_after != g_delete_after) {
+            MessageBoxW(owner, L"設定無法寫入 Windows 使用者設定資料夾。請確認目前帳號有權限寫入 AppData\\Roaming\\AutoUnwrap。",
+                        L"Auto Unwrap 設定", MB_OK | MB_ICONERROR);
+            return false;
+        }
         return true;
     }
     return false;
