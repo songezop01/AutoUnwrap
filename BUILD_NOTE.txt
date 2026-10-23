@@ -1,12 +1,28 @@
-Auto Unwrap v3.0.3
+Auto Unwrap v3.0.4-settings-delete-fix
+Updated: 2026-10-23 (UTC+8)
 
-This package contains the v3.0.3 source fix for Windows automatic deletion.
-The existing v3.0.2 executable was intentionally not included because this
-Linux environment does not have a MinGW-w64 cross-compiler, so shipping the
-old EXE as v3.0.3 would be misleading.
+The supported build recipe in this repository is:
+  .github/workflows/build.yml
 
-Build on a machine with MinGW-w64:
-  ./build_mingw.sh
+GitHub Actions runs on push to main or manual workflow_dispatch. It builds
+the Windows resource and C++17 Win32 executable with MinGW-w64, collects
+runtime DLLs from the actual g++.exe directory, and uploads:
+  AutoUnwrap-Windows-x64 / AutoUnwrap-Windows-x64.zip
 
-The resulting file will be:
-  dist/AutoUnwrap.exe
+Extract the entire package before running AutoUnwrap.exe. Keep the supplied
+libwinpthread-1.dll, libgcc_s_seh-1.dll and libstdc++-6.dll beside the EXE.
+The build uses -static-libgcc and -static-libstdc++, not full static linking.
+Bandizip bz.exe or 7-Zip 7z.exe/7zz.exe is installed separately.
+
+The older build_mingw.sh mentioned in historical notes is not present in
+this repository. Do not assume those old Linux instructions are complete.
+Generated EXE/DLL files and personal AppData settings are not source files.
+
+Latest pre-handoff source/build baseline:
+  a9cab5a9de6c1f54e55e7430d26b2b3a1e892ae1
+  https://github.com/songezop01/AutoUnwrap/actions/runs/34020506392
+That historical CI run succeeded. It is not a new Windows GUI test.
+
+Traditional Chinese technical handoff and synchronization audit:
+  docs/GROK_HANDOFF.zh-TW.md
+  docs/SYNC_AUDIT_2026-10-23.md

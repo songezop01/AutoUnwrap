@@ -1,0 +1,36 @@
+# Generated builds and runtime dependencies belong in Actions artifacts/releases.
+/dist/
+/build/
+*.o
+*.obj
+*.exe
+*.dll
+*.zip
+*.7z
+*.rar
+*.pdb
+
+# Local settings, credentials and diagnostic exports.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+settings.ini
+passwords.dat
+engine.dat
+output_mode.dat
+output_folder.dat
+delete_after.dat
+disguise_rules.dat
+diagnostic.log
+process-output/
+AutoUnwrap-diagnostic-*.txt
+
+# Generated fixtures and Python/editor caches.
+/tests/fixture/
+__pycache__/
+*.py[cod]
+.venv/
+.vscode/
+.idea/

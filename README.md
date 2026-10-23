@@ -1,6 +1,14 @@
-# Auto Unwrap v3.0.3
+# Auto Unwrap v3.0.4
 
-Auto Unwrap v3.0.2 是一個 Windows x64 拖放式工具，專門處理「檔案內容是壓縮檔，但副檔名被偽裝成 `.jpg`、`.png`、`.lz4` 或其他名稱」的情況。此版本在 v2.0 的原地混合解壓基礎上，重新整理整體 UI、改善密碼選擇回饋、將固定輸出位置改為直覺的資料夾選擇器，並減少大檔案處理時不必要的 I/O。
+Auto Unwrap v3.0.4 是一個 Windows x64 拖放式工具，專門處理「檔案內容是壓縮檔，但副檔名被偽裝成 `.jpg`、`.png`、`.lz4` 或其他名稱」的情況。此版本在 v2.0 的原地混合解壓基礎上，重新整理整體 UI、改善密碼選擇回饋、將固定輸出位置改為直覺的資料夾選擇器，並減少大檔案處理時不必要的 I/O。
+
+## 目前版本與交接
+
+主程式版本為 `3.0.4-settings-delete-fix`。v3.0.4 補上輸出設定視窗原本缺少的「儲存設定並關閉／取消」按鈕；按儲存或右上角 X 會保存，按取消會放棄變更。保存時回讀 INI 驗證刪除選項，失敗時顯示錯誤。密碼及偽裝規則視窗誤貼程式碼的編譯問題也已在 `7696be3` 修正。
+
+建置流程已在 `a9cab5a` 加入 MinGW runtime DLL 打包；下載後請完整解壓 ZIP，將附帶 DLL 與 EXE 放在同一資料夾。這個版本不是完全靜態連結。
+
+交接請先閱讀 [給 Grok AI 的繁體中文技術交接文檔](docs/GROK_HANDOFF.zh-TW.md)，再參照 [2026-10-23 同步與驗證紀錄](docs/SYNC_AUDIT_2026-10-23.md)。以下 v3.0.3 及更早章節保留歷史背景；目前保存操作與建置方法以本節及下方建置說明為準。
 
 ## v3.0.3 自動刪除可靠性修正
 
@@ -177,36 +185,28 @@ download.rar                 ← 一開始就是 RAR，直接改名後解壓
 
 ## 建置與測試
 
-本專案使用 MinGW-w64 交叉編譯器製作 Windows x64 GUI EXE。Linux 建置指令如下：
+目前可用建置流程位於 [`.github/workflows/build.yml`](.github/workflows/build.yml)。推送至 `main` 或在 GitHub Actions 手動執行 **Build AutoUnwrap**，會在 Windows runner 使用 MinGW-w64 建置、收集 DLL，再上傳 `AutoUnwrap-Windows-x64` artifact，其中包含 `AutoUnwrap-Windows-x64.zip`。
 
-```bash
-sudo apt-get install g++-mingw-w64-x86-64
-./build_mingw.sh
-```
+請將 ZIP 完整解壓再啟動 EXE，保留附帶的 runtime DLL。舊說明引用的 `build_mingw.sh` 沒有保存在目前 repository，不能直接依該指令重建。完整編譯參數與 DLL 限制見交接文檔。
 
 輸出檔為 `dist/AutoUnwrap.exe`。程式不內嵌 Bandizip 或 7-Zip，使用者必須自行安裝其中一個解壓工具；如此可避免重新散布第三方工具、版本及授權問題。
 
-測試資料包含外層 7Z、內層 ZIP、再內層 7Z 的混合巢狀案例，並驗證三組不同密碼、錯誤密碼拒絕、直接改副檔名、原地輸出、成功後刪除，以及大型檔案友善的暫存嘗試清理流程。RAR4／RAR5／ZIP／7Z／LZ4 魔數辨識也已納入回歸測試。
+2026-10-23 執行可用的現有測試：9 項通過，`test_delete_contract.py` 因仍硬編碼期待 v3.0.3 而失敗。多數測試是來源字串契約檢查；3 項以真實 7-Zip 在暫存資料夾測試分卷／巢狀資料，但沒有執行 AutoUnwrap.exe。這些結果不能取代 Windows GUI、設定重啟保存與真實自動刪除驗證。部分 fixture 腳本硬編碼舊 Linux 路徑，未執行；詳見同步紀錄。
 
 ## 專案檔案
 
 | 路徑 | 用途 |
 | --- | --- |
 | `src/main.cpp` | 完整 C++ Win32 原始碼。 |
-| `build_mingw.sh` | 建置 Windows x64 EXE 的腳本。 |
-| `dist/AutoUnwrap.exe` | 建置完成的可執行檔。 |
-| `analysis.md` | 對原始 `auto_unzip.exe` 的靜態分析摘要。 |
-| `v21_findings.md` | v2.1 UI 與效能設計摘要。 |
-| `dpi_findings.md` | v2.2 高 DPI 問題分析與修正策略。 |
-| `hang_findings.md` | 第一層卡住的程式流程分析。 |
-| `hang_repro.md` | 7-Zip 密碼、空密碼及輸出行為重現結果。 |
-| `official_findings_split_bandizip.md` | Bandizip 官方 CLI 與分割 ZIP 規則整理。 |
-| `corefix_findings.md` | v2.4 核心失效問題與修正報告。 |
+| `.github/workflows/build.yml` | Windows x64 建置、runtime DLL 蒐集與 ZIP artifact。 |
+| `dist/AutoUnwrap.exe` | 建置產物，不在原始碼庫中保存。 |
+| `BUILD_NOTE.txt` | 目前可用建置入口與版本說明。 |
+| `docs/GROK_HANDOFF.zh-TW.md` | 架構、版本、BUG 修正、設定、DLL、測試限制與後續建議。 |
+| `docs/SYNC_AUDIT_2026-10-23.md` | 本次比對範圍、保留版本、缺少資料及驗證紀錄。 |
 | `tests/test_split_archives.py` | 真實 7Z／ZIP 多分割卷測試。 |
 | `tests/test_split_nested.py` | 分割檔多層遞迴測試。 |
 | `tests/test_split_jpg_nested.py` | 分割檔解壓後 JPG 自動改名測試。 |
 | `tests/test_diagnostic_contract.py` | 診斷記錄、報告匯出、密碼遮罩及內容辨識契約測試。 |
-| `v27_findings.md` | v2.7 診斷記錄、系統狀態、完整工具輸出及內容辨識修正分析。 |
 | `v28_findings.md` | 根據實際診斷報告修正 CRC 誤判與下一層工作佇列漏排。 |
 | `tests/test_partial_crc_and_queue.py` | CRC／Wrong password 分類、下一層交接及完整性警告契約測試。 |
 | `tests/test_false_positive_and_final_marker.py` | 正常遊戲資源誤判過濾、最終目錄停止及速度契約測試。 |
@@ -215,7 +215,6 @@ sudo apt-get install g++-mingw-w64-x86-64
 | `tests/test_delete_contract.py` | 自動刪除設定、完整成功群組、分割卷清理、唯讀屬性及完整性警告保護契約測試。 |
 | `v302_delete_findings.md` | 依最新診斷報告確認舊版與 delete_after=no 的根因分析。 |
 | `v301_delete_findings.md` | v3.0.1 自動刪除流程與診斷欄位分析。 |
-| `video_ui_findings.md` | 依使用者錄影整理的 WM_SIZE 與縮放版面問題分析。 |
 | `v29_findings.md` | v2.9 實機診斷、誤判、速度及最終遊戲目錄修正分析。 |
 | `%APPDATA%\\AutoUnwrap\\diagnostic.log` | 程式執行事件紀錄；由程序自動產生。 |
 | `%APPDATA%\\AutoUnwrap\\process-output\\` | 每次 Bandizip／7-Zip 的完整 stdout／stderr 原始輸出；由程序自動產生。 |
@@ -223,7 +222,7 @@ sudo apt-get install g++-mingw-w64-x86-64
 | `src/AutoUnwrap.manifest` | Per-Monitor V2 DPI manifest。 |
 | `src/resource.rc` | 將 manifest 嵌入 EXE 的資源檔。 |
 | `tests/test_in_place_mixed.py` | 原地混合格式、逐層密碼及自動刪除測試。 |
-| `tests/test_streaming_attempt.py` | 暫存解壓嘗試與成功移交測試。 |
+| `v291_split_findings.md`、`v303_delete_findings.md`、`v30_findings.md` | 分卷補充密碼、刪除重試與 v3.0 歷史設計紀錄。 |
 
 ## 參考資料
 
