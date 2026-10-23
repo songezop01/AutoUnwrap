@@ -288,7 +288,7 @@ workflow 會檢查並複製同一 MinGW 工具鏈目錄的下列 DLL，缺少時
 
 本次沒有盲目執行 `create_fixture.py`、`test_fixture.py`、`test_in_place_mixed.py`：它們依賴舊 Linux 絕對 fixture 路徑，fixture 未隨本次可見來源完整提供；建立 fixture 的腳本也不應未經檢查就在現有資料目錄重建。應先改成安全、可設定的獨立暫存測試流程，再於後續工作執行。
 
-本次沒有重新建置 EXE、沒有重新執行 Windows GUI，也沒有把既有成功 CI 當成新測試結果。較新的文檔 commit 可能觸發 workflow；是否成功應另查該次 run，並核對其對應 commit。
+本次沒有在本機重新建置 EXE，也沒有重新執行 Windows GUI。首份同步提交 [`3052db5`](https://github.com/songezop01/AutoUnwrap/commit/3052db50ba2be2b41db05639a77589b0e76da467) 已觸發新的 Windows CI；[run 39952822192](https://github.com/songezop01/AutoUnwrap/actions/runs/39952822192) 在 2026-10-23 20:24（臺灣時間）成功完成建置、DLL 收集、ZIP 封裝與 artifact 上傳。這是本次新的 CI 結果，仍不能代替使用者 Windows GUI／自動刪除實測。後續文件補充提交或程式變更的 workflow 應按對應 SHA 另查。
 
 ## 9. 已知風險與優先處理順序
 

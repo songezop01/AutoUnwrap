@@ -74,7 +74,15 @@
 
 `create_fixture.py`、`test_fixture.py`、`test_in_place_mixed.py` 依賴硬編碼舊 Linux fixture 路徑，未執行。fixture 建立器還會先遞迴刪除其固定目錄，必須先改成明確、安全的暫存路徑才能使用。
 
-這些測試沒有執行 AutoUnwrap.exe，不能證明 GUI、DPAPI／INI 重啟保存、DeleteFileW、CRC 真實分類、取消或重開機刪除都通過。本機沒有可用的 `g++`／`windres`，本次未本機重編譯；新的 GitHub 提交若觸發 Actions，應另以該提交 SHA 的 run 結果為準。
+這些測試沒有執行 AutoUnwrap.exe，不能證明 GUI、DPAPI／INI 重啟保存、DeleteFileW、CRC 真實分類、取消或重開機刪除都通過。本機沒有可用的 `g++`／`windres`，本次未本機重編譯。
+
+### 首份同步提交與新 CI 回讀確認
+
+- 提交：[`3052db50ba2be2b41db05639a77589b0e76da467`](https://github.com/songezop01/AutoUnwrap/commit/3052db50ba2be2b41db05639a77589b0e76da467)，以基準 `a9cab5a` 為 parent，使用預期舊 SHA 檢查更新 `main`，沒有強制推送。
+- GitHub 回讀確認 `main` 指向該提交，tree 為 `03bfe9d35fcc991841358ea1c253279d62d9fd1b`；交接文檔文字與本機內容完全一致。差異僅本文件列出的五個檔案，25 個原有檔案的 blob 完全不變，沒有移除檔案。
+- 新的 [Actions run 39952822192](https://github.com/songezop01/AutoUnwrap/actions/runs/39952822192) 在 2026-10-23 20:24（UTC+8）成功；對應 SHA 正是 `3052db5`。它是本次新的 CI 建置結果，並非沿用 9 月的成功狀態，也不是 GUI／實際來源刪除測試。
+- 新產物：[AutoUnwrap-Windows-x64](https://github.com/songezop01/AutoUnwrap/actions/runs/39952822192/artifacts/12501745800)，Actions artifact ID `12501745800`，查詢時未過期；保存期限依 GitHub 設定。未將其 EXE／DLL／ZIP 提交原始碼庫。
+- 本段是首份同步結果的後續文件補充，故補充後的新提交 SHA 與 workflow 可另外查詢；本段不聲稱文件能記錄自身 commit SHA。
 
 ## Repository 可見性
 
