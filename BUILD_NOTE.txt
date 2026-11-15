@@ -1,4 +1,4 @@
-Auto Unwrap v3.0.4-settings-delete-fix
+Auto Unwrap v3.0.5-password-order
 Updated: 2026-10-23 (UTC+8)
 
 The supported build recipe in this repository is:

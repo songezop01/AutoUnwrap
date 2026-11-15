@@ -18,6 +18,7 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -25,6 +26,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "password_candidates.h"
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "comdlg32.lib")
@@ -40,7 +43,7 @@ static constexpr UINT WM_APP_FIRST_RUN = WM_APP + 3;
 static constexpr UINT WM_APP_STATUS = WM_APP + 4;
 static constexpr UINT WM_APP_REQUEST_PASSWORD = WM_APP + 5;
 static constexpr int MAX_LAYERS = 5;
-static constexpr wchar_t APP_VERSION[] = L"3.0.4-settings-delete-fix";
+static constexpr wchar_t APP_VERSION[] = L"3.0.5-password-order";
 
 static constexpr int ID_LOG = 1001;
 static constexpr int ID_PASSWORDS = 1002;
@@ -1096,26 +1099,6 @@ static bool ShowOutputDialog(HWND owner) {
     return false;
 }
 
-static std::wstring QuoteArg(const std::wstring& arg) {
-    std::wstring result = L"\"";
-    size_t backslashes = 0;
-    for (wchar_t ch : arg) {
-        if (ch == L'\\') ++backslashes;
-        else if (ch == L'\"') {
-            result.append(backslashes * 2 + 1, L'\\');
-            result.push_back(L'\"');
-            backslashes = 0;
-        } else {
-            result.append(backslashes, L'\\');
-            result.push_back(ch);
-            backslashes = 0;
-        }
-    }
-    result.append(backslashes * 2, L'\\');
-    result.push_back(L'\"');
-    return result;
-}
-
 static bool IsBandizip(const fs::path& engine) {
     const std::wstring name = Lower(engine.filename().wstring());
     return name == L"bz.exe" || name == L"bandizip.exe" || name.find(L"bandizip") != std::wstring::npos;
@@ -1896,15 +1879,21 @@ static std::wstring BuildCommand(const fs::path& engine, const wchar_t* action,
 }
 
 static std::vector<std::wstring> PasswordCandidates(const std::wstring& one_time) {
-    std::vector<std::wstring> candidates;
-    auto add = [&candidates](const std::wstring& value) {
-        if (std::find(candidates.begin(), candidates.end(), value) == candidates.end()) candidates.push_back(value);
-    };
-    if (!one_time.empty()) add(one_time);
     std::lock_guard<std::mutex> lock(g_password_mutex);
-    for (const auto& password : g_passwords) add(password);
-    add(L"");
-    return candidates;
+    return BuildPasswordCandidates(one_time, g_passwords);
+}
+
+static void PromoteSuccessfulPassword(std::vector<std::wstring>& passwords, const std::wstring& succeeded) {
+    const auto it = std::find(passwords.begin(), passwords.end(), succeeded);
+    const size_t from_index = it == passwords.end()
+        ? passwords.size()
+        : static_cast<size_t>(std::distance(passwords.begin(), it));
+    if (from_index == 0 && !passwords.empty() && passwords.front() == succeeded) return;
+    PromotePassword(passwords, succeeded);
+    WriteDiagnostic(L"PASSWORD_PROMOTE",
+                    L"length=" + std::to_wstring(succeeded.size()) +
+                    L"；from_index=" + std::to_wstring(from_index) +
+                    L"；to_index=0");
 }
 
 struct ExtractionResult {
@@ -1977,7 +1966,11 @@ static ExtractionResult TestAndExtract(const ArchiveGroup& group, const fs::path
                       L"，耗時 " + FormatElapsed(run.elapsed_ms) + L"。");
         }
         if (!run.output_tail.empty()) AppendLog(L"解壓工具最後輸出：\r\n" + run.output_tail);
-        if (run.saw_invalid_password) AppendLog(L"診斷：解壓工具明確回報密碼錯誤。");
+        if (run.saw_invalid_password) {
+            AppendLog(i + 1 < passwords.size()
+                          ? L"診斷：此候選密碼被解壓工具拒絕，將繼續嘗試下一個候選。"
+                          : L"診斷：解壓工具明確回報密碼錯誤。");
+        }
         else if (run.saw_crc_failure) AppendLog(L"診斷：解壓工具回報 CRC／校驗錯誤；密碼可能已通過，但檔案或分割卷可能不完整。");
         std::error_code cleanup_ec;
         SetFileAttributesW(attempt.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
@@ -2163,13 +2156,17 @@ static void ProcessInput(const fs::path& input, const fs::path& destination, con
                 std::vector<std::wstring> additional{additional_password};
                 ExtractionResult retry = TestAndExtract(job.group, destination, additional, engine, job.depth);
                 if (retry.success) {
-                    passwords.push_back(additional_password);
                     extraction = std::move(retry);
                     AppendLog(L"第 " + std::to_wstring(job.depth + 1) + L" 層使用補充密碼成功；已加入後續層候選。");
                 }
             }
         }
         if (!extraction.success) continue;
+        // The password that opened this layer is the best guess for the next
+        // layer. Trying the original list from the top again reports a wrong
+        // password for candidates that already failed, which on a large inner
+        // archive can take a long time before the working password is reached.
+        PromoteSuccessfulPassword(passwords, extraction.password);
         ++extracted_layers;
         if (!extraction.integrity_warning) {
             successful_archives.push_back(job.group);
