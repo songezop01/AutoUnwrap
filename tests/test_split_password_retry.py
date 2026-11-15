@@ -9,7 +9,7 @@ assert 'QuoteArg(password.empty() ? L"-p" : L"-p" + password)' in source
 # A manually dropped inner archive is depth 0, so retry must not be gated on depth > 0.
 assert 'if (!extraction.success && !g_cancel_requested.load())' in source
 assert 'RequestAdditionalPassword(job.group.primary, job.depth, additional_password)' in source
-assert 'passwords.push_back(additional_password)' in source
+assert 'PromoteSuccessfulPassword(passwords, extraction.password)' in source
 assert 'WM_APP_REQUEST_PASSWORD' in source
 assert 'PASSWORD_REQUEST' in source
 

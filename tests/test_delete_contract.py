@@ -21,7 +21,7 @@ assert "DELETE_SUMMARY" in source
 assert "if (!extraction.integrity_warning)" in source
 assert "successful_archives.push_back(job.group)" in source
 assert "g_delete_after" in source
-assert 'APP_VERSION[] = L"3.0.3-delete-retry"' in source
+assert 'APP_VERSION[] = L"3.0.5-password-order"' in source
 assert "delete_after_for_job" in source
 assert "DELETE_JOB_MODE" in source
 assert "本次工作未啟用自動刪除" in source
